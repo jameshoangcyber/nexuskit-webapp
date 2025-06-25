@@ -1,11 +1,12 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useRouter } from "next/navigation"
 import { motion } from "framer-motion"
 import { ArrowLeft, Save } from "lucide-react"
@@ -15,7 +16,6 @@ import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { z } from "zod"
 import { api } from "@/lib/api"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 
 const productSchema = z.object({
   name: z.string().min(2, "Tên sản phẩm phải có ít nhất 2 ký tự"),
@@ -26,48 +26,71 @@ const productSchema = z.object({
   image: z.string().url("URL hình ảnh không hợp lệ").optional(),
 })
 
-const categories = [
-  { id: "smartphone", name: "Smartphone" },
-  { id: "laptop", name: "Laptop" },
-  { id: "tablet", name: "Tablet" },
-  { id: "smartwatch", name: "Smartwatch" },
-  { id: "audio", name: "Audio" },
-  { id: "gaming", name: "Gaming" },
-  { id: "smarthome", name: "Smart Home" },
-  { id: "accessories", name: "Phụ kiện" },
-]
-
 type ProductForm = z.infer<typeof productSchema>
 
-export default function CreateProductPage() {
+interface EditProductPageProps {
+  params: {
+    id: string
+  }
+}
+
+export default function EditProductPage({ params }: EditProductPageProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [specifications, setSpecifications] = useState<Record<string, string>>({})
+  const [product, setProduct] = useState<any>(null)
   const router = useRouter()
+
+  const categories = [
+    { id: "smartphone", name: "Smartphone" },
+    { id: "laptop", name: "Laptop" },
+    { id: "tablet", name: "Tablet" },
+    { id: "smartwatch", name: "Smartwatch" },
+    { id: "audio", name: "Audio" },
+    { id: "gaming", name: "Gaming" },
+    { id: "smarthome", name: "Smart Home" },
+    { id: "accessories", name: "Phụ kiện" },
+  ]
 
   const form = useForm<ProductForm>({
     resolver: zodResolver(productSchema),
-    defaultValues: {
-      name: "",
-      price: 0,
-      description: "",
-      category: "",
-      stock: 0,
-      image: "",
-      specifications: {},
-    },
   })
+
+  useEffect(() => {
+    fetchProduct()
+  }, [params.id])
+
+  const fetchProduct = async () => {
+    try {
+      const productData = await api.getProduct(params.id)
+      setProduct(productData)
+      setSpecifications(productData.specifications || {})
+
+      // Set form values
+      form.reset({
+        name: productData.name,
+        price: productData.price,
+        description: productData.description,
+        category: productData.category,
+        stock: productData.stock,
+        image: productData.image,
+      })
+    } catch (error) {
+      toast.error("Không thể tải thông tin sản phẩm")
+      router.push("/admin")
+    }
+  }
 
   const handleSubmit = async (data: ProductForm) => {
     setIsLoading(true)
     try {
-      await api.createProduct({
+      await api.updateProduct(params.id, {
         ...data,
         specifications,
       })
-      toast.success("Tạo sản phẩm thành công!")
+      toast.success("Cập nhật sản phẩm thành công!")
       router.push("/admin")
     } catch (error) {
-      toast.error("Lỗi khi tạo sản phẩm")
+      toast.error("Lỗi khi cập nhật sản phẩm")
     } finally {
       setIsLoading(false)
     }
@@ -89,6 +112,14 @@ export default function CreateProductPage() {
     })
   }
 
+  if (!product) {
+    return (
+      <div className="min-h-screen bg-gray-900 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-600"></div>
+      </div>
+    )
+  }
+
   return (
     <div className="min-h-screen bg-gray-900 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -100,7 +131,7 @@ export default function CreateProductPage() {
                 Quay lại
               </Button>
             </Link>
-            <h1 className="text-3xl font-bold text-white">Tạo sản phẩm mới</h1>
+            <h1 className="text-3xl font-bold text-white">Chỉnh sửa sản phẩm</h1>
           </div>
 
           <Card className="bg-gray-800 border-gray-700">
@@ -114,12 +145,7 @@ export default function CreateProductPage() {
                     <Label htmlFor="name" className="text-gray-300">
                       Tên sản phẩm
                     </Label>
-                    <Input
-                      id="name"
-                      {...form.register("name")}
-                      className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="NexusKit Pro Max"
-                    />
+                    <Input id="name" {...form.register("name")} className="bg-gray-700 border-gray-600 text-white" />
                     {form.formState.errors.name && (
                       <p className="text-red-400 text-sm mt-1">{form.formState.errors.name.message}</p>
                     )}
@@ -134,18 +160,19 @@ export default function CreateProductPage() {
                       type="number"
                       {...form.register("price", { valueAsNumber: true })}
                       className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="25000000"
                     />
                     {form.formState.errors.price && (
                       <p className="text-red-400 text-sm mt-1">{form.formState.errors.price.message}</p>
                     )}
                   </div>
+                </div>
 
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
                     <Label htmlFor="category" className="text-gray-300">
                       Danh mục
                     </Label>
-                    <Select onValueChange={(value) => form.setValue("category", value)}>
+                    <Select value={form.watch("category")} onValueChange={(value) => form.setValue("category", value)}>
                       <SelectTrigger className="bg-gray-700 border-gray-600 text-white">
                         <SelectValue placeholder="Chọn danh mục" />
                       </SelectTrigger>
@@ -171,7 +198,6 @@ export default function CreateProductPage() {
                       type="number"
                       {...form.register("stock", { valueAsNumber: true })}
                       className="bg-gray-700 border-gray-600 text-white"
-                      placeholder="100"
                     />
                     {form.formState.errors.stock && (
                       <p className="text-red-400 text-sm mt-1">{form.formState.errors.stock.message}</p>
@@ -187,7 +213,6 @@ export default function CreateProductPage() {
                     id="description"
                     {...form.register("description")}
                     className="bg-gray-700 border-gray-600 text-white"
-                    placeholder="Mô tả chi tiết về sản phẩm..."
                     rows={4}
                   />
                   {form.formState.errors.description && (
@@ -246,7 +271,7 @@ export default function CreateProductPage() {
                 <div className="flex gap-4">
                   <Button type="submit" disabled={isLoading} className="bg-blue-600 hover:bg-blue-700">
                     <Save className="w-4 h-4 mr-2" />
-                    {isLoading ? "Đang tạo..." : "Tạo sản phẩm"}
+                    {isLoading ? "Đang cập nhật..." : "Cập nhật sản phẩm"}
                   </Button>
                   <Link href="/admin">
                     <Button type="button" variant="outline" className="border-gray-600 text-gray-300">

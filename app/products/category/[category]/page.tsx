@@ -2,64 +2,78 @@
 
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
+import { Badge } from "@/components/ui/badge"
 import { formatPrice } from "@/lib/utils"
 import { useStore } from "@/lib/store"
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { ShoppingCart, Star, Heart, Package } from "lucide-react"
+import { ShoppingCart, Star, Heart, ArrowLeft, Package } from "lucide-react"
 import toast from "react-hot-toast"
-import ProductFilters from "@/components/products/product-filters"
 import { api } from "@/lib/api"
 import { useState, useEffect } from "react"
 import { mockProducts } from "@/lib/mock-data"
-import type { Product } from "@/lib/store"
+import { notFound } from "next/navigation"
 
-export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([])
+interface CategoryPageProps {
+  params: {
+    category: string
+  }
+}
+
+const categoryNames: Record<string, string> = {
+  smartphone: "Smartphone",
+  laptop: "Laptop",
+  tablet: "Tablet",
+  smartwatch: "Smartwatch",
+  audio: "Audio & Headphones",
+  gaming: "Gaming",
+  smarthome: "Smart Home",
+  accessories: "Phụ kiện",
+}
+
+export default function CategoryPage({ params }: CategoryPageProps) {
+  const [products, setProducts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
-  const [filters, setFilters] = useState({
-    search: "",
-    category: "all",
-    priceRange: "all",
-    sortBy: "name-asc",
-    sortOrder: "asc",
-  })
   const { addToCart, addToWishlist, removeFromWishlist, isInWishlist } = useStore()
 
-  const fetchProducts = async (newFilters = filters) => {
+  const categoryName = categoryNames[params.category]
+
+  if (!categoryName) {
+    notFound()
+  }
+
+  useEffect(() => {
+    fetchCategoryProducts()
+  }, [params.category])
+
+  const fetchCategoryProducts = async () => {
     setIsLoading(true)
     setError("")
     try {
-      console.log("Fetching products with filters:", newFilters)
-
       // Try API first, fallback to mock data
-      const response = await api.getProducts(newFilters).catch((apiError) => {
+      const response = await api.getProducts({ category: params.category }).catch((apiError) => {
         console.log("API failed, using mock data:", apiError)
+        const filteredMockProducts = mockProducts.filter((product) => product.category === params.category)
         return {
-          products: mockProducts.map((product) => ({
+          products: filteredMockProducts.map((product) => ({
             ...product,
             image: product.image || "/placeholder.svg?height=400&width=400",
           })),
-          total: mockProducts.length,
+          total: filteredMockProducts.length,
         }
       })
 
-      console.log("Products response:", response)
-
       const productsData = response.products || response || []
       setProducts(productsData)
-
-      if (productsData.length === 0) {
-        console.log("No products found, but not calling notFound()")
-      }
     } catch (error) {
-      console.error("Error fetching products:", error)
+      console.error("Error fetching category products:", error)
       setError("Không thể tải danh sách sản phẩm")
       // Fallback to mock data on error
+      const filteredMockProducts = mockProducts.filter((product) => product.category === params.category)
       setProducts(
-        mockProducts.map((product) => ({
+        filteredMockProducts.map((product) => ({
           ...product,
           image: product.image || "/placeholder.svg?height=400&width=400",
         })),
@@ -67,15 +81,6 @@ export default function ProductsPage() {
     } finally {
       setIsLoading(false)
     }
-  }
-
-  useEffect(() => {
-    fetchProducts(filters)
-  }, [])
-
-  const handleFiltersChange = (newFilters: any) => {
-    setFilters(newFilters)
-    fetchProducts(newFilters)
   }
 
   const handleAddToCart = (product: any) => {
@@ -96,47 +101,36 @@ export default function ProductsPage() {
   return (
     <div className="min-h-screen bg-gray-900 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        {/* Back button */}
+        <div className="flex items-center gap-4 mb-8">
+          <Link href="/products" className="inline-flex items-center text-gray-400 hover:text-white">
+            <ArrowLeft className="w-4 h-4 mr-2" />
+            Tất cả sản phẩm
+          </Link>
+          <span className="text-gray-600">•</span>
+          <Link href="/products/categories" className="inline-flex items-center text-gray-400 hover:text-white">
+            <Package className="w-4 h-4 mr-2" />
+            Danh mục sản phẩm
+          </Link>
+        </div>
+
         <motion.div
           initial={{ opacity: 0, y: 30 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.6 }}
           className="text-center mb-12"
         >
-          <h1 className="text-4xl font-bold text-white mb-4">Sản phẩm NexusKit</h1>
-          <p className="text-xl text-gray-400">Khám phá bộ sưu tập sản phẩm công nghệ tiên tiến</p>
+          <Badge className="mb-4 bg-blue-600 text-lg px-4 py-2">{categoryName}</Badge>
+          <h1 className="text-4xl font-bold text-white mb-4">Danh mục {categoryName}</h1>
+          <p className="text-xl text-gray-400">Khám phá bộ sưu tập {categoryName.toLowerCase()} chất lượng cao</p>
         </motion.div>
-
-        {/* Categories Overview Link */}
-        <div className="mb-8">
-          <Card className="bg-gray-800 border-gray-700">
-            <CardContent className="p-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <h2 className="text-xl font-semibold text-white mb-2">Duyệt theo danh mục</h2>
-                  <p className="text-gray-400">Khám phá sản phẩm theo từng danh mục chuyên biệt</p>
-                </div>
-                <Link href="/products/categories">
-                  <Button className="bg-blue-600 hover:bg-blue-700">
-                    <Package className="w-4 h-4 mr-2" />
-                    Xem tất cả danh mục
-                  </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Filters */}
-        <div className="mb-8">
-          <ProductFilters filters={filters} onFiltersChange={handleFiltersChange} isLoading={isLoading} />
-        </div>
 
         {/* Error Message */}
         {error && (
           <div className="mb-6 p-4 bg-red-900/20 border border-red-500 rounded-lg">
             <p className="text-red-400 text-center">{error}</p>
             <div className="text-center mt-2">
-              <Button onClick={() => fetchProducts(filters)} variant="outline" className="border-red-500 text-red-400">
+              <Button onClick={fetchCategoryProducts} variant="outline" className="border-red-500 text-red-400">
                 Thử lại
               </Button>
             </div>
@@ -156,29 +150,17 @@ export default function ProductsPage() {
             ))}
           </div>
         ) : products.length === 0 ? (
-          // Empty State - Don't call notFound()
+          // Empty State
           <div className="text-center py-12">
             <div className="max-w-md mx-auto">
               <div className="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
                 <ShoppingCart className="w-12 h-12 text-gray-500" />
               </div>
-              <h3 className="text-xl font-semibold text-white mb-2">Không tìm thấy sản phẩm</h3>
-              <p className="text-gray-400 mb-6">
-                {Object.keys(filters).length > 0
-                  ? "Không có sản phẩm nào phù hợp với bộ lọc của bạn. Hãy thử điều chỉnh bộ lọc."
-                  : "Hiện tại chưa có sản phẩm nào. Vui lòng quay lại sau."}
-              </p>
-              <div className="space-y-2">
-                <Button onClick={() => handleFiltersChange({})} className="bg-blue-600 hover:bg-blue-700">
-                  Xóa bộ lọc
-                </Button>
-                <br />
-                <Link href="/">
-                  <Button variant="outline" className="border-gray-600 text-gray-300">
-                    Về trang chủ
-                  </Button>
-                </Link>
-              </div>
+              <h3 className="text-xl font-semibold text-white mb-2">Không có sản phẩm</h3>
+              <p className="text-gray-400 mb-6">Hiện tại chưa có sản phẩm nào trong danh mục {categoryName}.</p>
+              <Link href="/products">
+                <Button className="bg-blue-600 hover:bg-blue-700">Xem tất cả sản phẩm</Button>
+              </Link>
             </div>
           </div>
         ) : (
@@ -268,6 +250,20 @@ export default function ProductsPage() {
               </motion.div>
             ))}
           </div>
+        )}
+
+        {/* Category Stats */}
+        {products.length > 0 && (
+          <motion.div
+            initial={{ opacity: 0, y: 30 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.6, delay: 0.5 }}
+            className="mt-12 text-center"
+          >
+            <p className="text-gray-400">
+              Hiển thị {products.length} sản phẩm trong danh mục {categoryName}
+            </p>
+          </motion.div>
         )}
       </div>
     </div>

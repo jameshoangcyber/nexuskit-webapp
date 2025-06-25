@@ -9,6 +9,10 @@ export interface Product {
   description: string
   specifications: Record<string, string>
   reviews: Review[]
+  category?: string
+  stock?: number
+  averageRating?: number
+  totalReviews?: number
 }
 
 export interface Review {
@@ -57,6 +61,14 @@ interface AppState {
   getCartTotal: () => number
   getCartItemsCount: () => number
 
+  // Wishlist
+  wishlist: Product[]
+  addToWishlist: (product: Product) => void
+  removeFromWishlist: (productId: string) => void
+  isInWishlist: (productId: string) => boolean
+  clearWishlist: () => void
+  getWishlistCount: () => number
+
   // User
   user: User | null
   setUser: (user: User | null) => void
@@ -104,6 +116,27 @@ export const useStore = create<AppState>()(
       },
       getCartItemsCount: () => {
         return get().cart.reduce((total, item) => total + item.quantity, 0)
+      },
+
+      // Wishlist state
+      wishlist: [],
+      addToWishlist: (product) => {
+        const wishlist = get().wishlist
+        const isAlreadyInWishlist = wishlist.some((item) => item.id === product.id)
+
+        if (!isAlreadyInWishlist) {
+          set({ wishlist: [...wishlist, product] })
+        }
+      },
+      removeFromWishlist: (productId) => {
+        set({ wishlist: get().wishlist.filter((item) => item.id !== productId) })
+      },
+      isInWishlist: (productId) => {
+        return get().wishlist.some((item) => item.id === productId)
+      },
+      clearWishlist: () => set({ wishlist: [] }),
+      getWishlistCount: () => {
+        return get().wishlist.length
       },
 
       // User state

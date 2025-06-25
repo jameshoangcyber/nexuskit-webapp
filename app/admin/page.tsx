@@ -27,25 +27,41 @@ export default function AdminDashboard() {
   const [products, setProducts] = useState([])
   const [orders, setOrders] = useState([])
   const [isLoading, setIsLoading] = useState(true)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     fetchDashboardData()
   }, [])
 
   const fetchDashboardData = async () => {
+    setIsLoading(true)
+    setError("")
     try {
-      const [statsRes, productsRes, ordersRes] = await Promise.all([
-        fetch("/api/admin/stats").then((res) => res.json()),
-        api.getProducts({ limit: 10 }),
-        api.getOrders(),
-      ])
+      // Fetch stats with fallback
+      const statsRes = await fetch("/api/admin/stats")
+        .then((res) => res.json())
+        .catch(() => ({
+          totalProducts: 0,
+          totalOrders: 0,
+          totalUsers: 0,
+          totalRevenue: 0,
+          recentOrders: [],
+          topProducts: [],
+          monthlyRevenue: [],
+        }))
+
+      // Fetch products with fallback
+      const productsRes = await api.getProducts({ limit: 10 }).catch(() => ({ products: [] }))
+
+      // Fetch orders with fallback
+      const ordersRes = await api.getOrders().catch(() => [])
 
       setStats(statsRes)
       setProducts(productsRes.products || [])
       setOrders(ordersRes || [])
     } catch (error) {
       console.error("Error fetching dashboard data:", error)
-      toast.error("Lỗi khi tải dữ liệu dashboard")
+      setError("Không thể tải dữ liệu dashboard")
     } finally {
       setIsLoading(false)
     }
@@ -96,7 +112,10 @@ export default function AdminDashboard() {
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gray-900 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-600"></div>
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-t-2 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-white">Đang tải dữ liệu dashboard...</p>
+        </div>
       </div>
     )
   }
@@ -105,8 +124,19 @@ export default function AdminDashboard() {
     <div className="min-h-screen bg-gray-900 py-8">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <motion.div initial={{ opacity: 0, y: 30 }} animate={{ opacity: 1, y: 0 }} transition={{ duration: 0.6 }}>
-          <h1 className="text-3xl font-bold text-white mb-8">Admin Dashboard</h1>
+          <div className="flex justify-between items-center mb-8">
+            <h1 className="text-3xl font-bold text-white">Admin Dashboard</h1>
+            <Button onClick={fetchDashboardData} variant="outline" className="border-gray-600 text-gray-300">
+              Làm mới
+            </Button>
+          </div>
         </motion.div>
+
+        {error && (
+          <div className="mb-6 p-4 bg-red-900/20 border border-red-500 rounded-lg">
+            <p className="text-red-400">{error}</p>
+          </div>
+        )}
 
         {/* Stats Cards */}
         <div className="mb-8">
@@ -134,20 +164,24 @@ export default function AdminDashboard() {
               </CardHeader>
               <CardContent>
                 <div className="space-y-4">
-                  {stats.recentOrders.slice(0, 5).map((order: any) => (
-                    <div key={order._id} className="flex items-center justify-between">
-                      <div>
-                        <p className="text-white font-medium">#{order._id.slice(-6)}</p>
-                        <p className="text-gray-400 text-sm">{order.shippingInfo?.name}</p>
+                  {stats.recentOrders.length === 0 ? (
+                    <p className="text-gray-400 text-center py-4">Chưa có đơn hàng nào</p>
+                  ) : (
+                    stats.recentOrders.slice(0, 5).map((order: any) => (
+                      <div key={order._id} className="flex items-center justify-between">
+                        <div>
+                          <p className="text-white font-medium">#{order._id?.slice(-6) || "N/A"}</p>
+                          <p className="text-gray-400 text-sm">{order.shippingInfo?.name || "Khách hàng"}</p>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-blue-400 font-medium">{formatPrice(order.total || 0)}</p>
+                          <Badge className={`${getStatusColor(order.status)} text-white text-xs`}>
+                            {getStatusText(order.status)}
+                          </Badge>
+                        </div>
                       </div>
-                      <div className="text-right">
-                        <p className="text-blue-400 font-medium">{formatPrice(order.total)}</p>
-                        <Badge className={`${getStatusColor(order.status)} text-white text-xs`}>
-                          {getStatusText(order.status)}
-                        </Badge>
-                      </div>
-                    </div>
-                  ))}
+                    ))
+                  )}
                 </div>
               </CardContent>
             </Card>
@@ -182,69 +216,81 @@ export default function AdminDashboard() {
                   </Link>
                 </CardHeader>
                 <CardContent>
-                  <div className="overflow-x-auto">
-                    <table className="w-full">
-                      <thead>
-                        <tr className="border-b border-gray-700">
-                          <th className="text-left text-gray-300 py-3">Tên sản phẩm</th>
-                          <th className="text-left text-gray-300 py-3">Giá</th>
-                          <th className="text-left text-gray-300 py-3">Danh mục</th>
-                          <th className="text-left text-gray-300 py-3">Kho</th>
-                          <th className="text-left text-gray-300 py-3">Đánh giá</th>
-                          <th className="text-right text-gray-300 py-3">Thao tác</th>
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {products.map((product: any) => (
-                          <tr key={product.id} className="border-b border-gray-700">
-                            <td className="py-4">
-                              <div className="text-white font-medium">{product.name}</div>
-                              <div className="text-gray-400 text-sm">{product.description?.substring(0, 50)}...</div>
-                            </td>
-                            <td className="py-4 text-blue-400 font-medium">{formatPrice(product.price)}</td>
-                            <td className="py-4">
-                              <Badge variant="outline" className="border-gray-600 text-gray-300">
-                                {product.category}
-                              </Badge>
-                            </td>
-                            <td className="py-4">
-                              <span className={`text-sm ${product.stock > 10 ? "text-green-400" : "text-red-400"}`}>
-                                {product.stock} sản phẩm
-                              </span>
-                            </td>
-                            <td className="py-4">
-                              <div className="flex items-center">
-                                <TrendingUp className="w-4 h-4 text-yellow-400 mr-1" />
-                                <span className="text-gray-300">{product.totalReviews || 0}</span>
-                              </div>
-                            </td>
-                            <td className="py-4">
-                              <div className="flex justify-end space-x-2">
-                                <Link href={`/products/${product.id}`}>
-                                  <Button size="sm" variant="outline" className="border-gray-600 text-gray-300">
-                                    <Eye className="w-4 h-4" />
-                                  </Button>
-                                </Link>
-                                <Link href={`/admin/products/${product.id}/edit`}>
-                                  <Button size="sm" variant="outline" className="border-gray-600 text-gray-300">
-                                    <Edit className="w-4 h-4" />
-                                  </Button>
-                                </Link>
-                                <Button
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={() => handleDeleteProduct(product.id)}
-                                  className="border-red-600 text-red-400 hover:bg-red-900/20"
-                                >
-                                  <Trash2 className="w-4 h-4" />
-                                </Button>
-                              </div>
-                            </td>
+                  {products.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-400 mb-4">Chưa có sản phẩm nào</p>
+                      <Link href="/admin/products/create">
+                        <Button className="bg-blue-600 hover:bg-blue-700">
+                          <Plus className="w-4 h-4 mr-2" />
+                          Tạo sản phẩm đầu tiên
+                        </Button>
+                      </Link>
+                    </div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-gray-700">
+                            <th className="text-left text-gray-300 py-3">Tên sản phẩm</th>
+                            <th className="text-left text-gray-300 py-3">Giá</th>
+                            <th className="text-left text-gray-300 py-3">Danh mục</th>
+                            <th className="text-left text-gray-300 py-3">Kho</th>
+                            <th className="text-left text-gray-300 py-3">Đánh giá</th>
+                            <th className="text-right text-gray-300 py-3">Thao tác</th>
                           </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </div>
+                        </thead>
+                        <tbody>
+                          {products.map((product: any) => (
+                            <tr key={product.id} className="border-b border-gray-700">
+                              <td className="py-4">
+                                <div className="text-white font-medium">{product.name}</div>
+                                <div className="text-gray-400 text-sm">{product.description?.substring(0, 50)}...</div>
+                              </td>
+                              <td className="py-4 text-blue-400 font-medium">{formatPrice(product.price)}</td>
+                              <td className="py-4">
+                                <Badge variant="outline" className="border-gray-600 text-gray-300">
+                                  {product.category}
+                                </Badge>
+                              </td>
+                              <td className="py-4">
+                                <span className={`text-sm ${product.stock > 10 ? "text-green-400" : "text-red-400"}`}>
+                                  {product.stock} sản phẩm
+                                </span>
+                              </td>
+                              <td className="py-4">
+                                <div className="flex items-center">
+                                  <TrendingUp className="w-4 h-4 text-yellow-400 mr-1" />
+                                  <span className="text-gray-300">{product.totalReviews || 0}</span>
+                                </div>
+                              </td>
+                              <td className="py-4">
+                                <div className="flex justify-end space-x-2">
+                                  <Link href={`/products/${product.id}`}>
+                                    <Button size="sm" variant="outline" className="border-gray-600 text-gray-300">
+                                      <Eye className="w-4 h-4" />
+                                    </Button>
+                                  </Link>
+                                  <Link href={`/admin/products/${product.id}/edit`}>
+                                    <Button size="sm" variant="outline" className="border-gray-600 text-gray-300">
+                                      <Edit className="w-4 h-4" />
+                                    </Button>
+                                  </Link>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => handleDeleteProduct(product.id)}
+                                    className="border-red-600 text-red-400 hover:bg-red-900/20"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </Button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>
@@ -255,53 +301,59 @@ export default function AdminDashboard() {
                   <CardTitle className="text-white">Danh sách đơn hàng</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-4">
-                    {orders.map((order: any) => (
-                      <div key={order.id} className="border border-gray-700 rounded-lg p-4">
-                        <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
-                          <div>
-                            <h3 className="text-white font-medium">Đơn hàng #{order.id}</h3>
-                            <p className="text-gray-400 text-sm">
-                              {new Date(order.createdAt).toLocaleDateString("vi-VN")}
+                  {orders.length === 0 ? (
+                    <div className="text-center py-8">
+                      <p className="text-gray-400">Chưa có đơn hàng nào</p>
+                    </div>
+                  ) : (
+                    <div className="space-y-4">
+                      {orders.map((order: any) => (
+                        <div key={order.id} className="border border-gray-700 rounded-lg p-4">
+                          <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-4">
+                            <div>
+                              <h3 className="text-white font-medium">Đơn hàng #{order.id}</h3>
+                              <p className="text-gray-400 text-sm">
+                                {new Date(order.createdAt).toLocaleDateString("vi-VN")}
+                              </p>
+                            </div>
+                            <div className="flex items-center space-x-3 mt-2 sm:mt-0">
+                              <Badge className={`${getStatusColor(order.status)} text-white`}>
+                                {getStatusText(order.status)}
+                              </Badge>
+                              <span className="text-blue-400 font-bold">{formatPrice(order.total)}</span>
+                            </div>
+                          </div>
+
+                          <div className="text-sm text-gray-400">
+                            <p>
+                              <strong>Khách hàng:</strong> {order.shippingInfo?.name}
+                            </p>
+                            <p>
+                              <strong>Email:</strong> {order.shippingInfo?.email}
+                            </p>
+                            <p>
+                              <strong>Điện thoại:</strong> {order.shippingInfo?.phone}
+                            </p>
+                            <p>
+                              <strong>Địa chỉ:</strong> {order.shippingInfo?.address}
                             </p>
                           </div>
-                          <div className="flex items-center space-x-3 mt-2 sm:mt-0">
-                            <Badge className={`${getStatusColor(order.status)} text-white`}>
-                              {getStatusText(order.status)}
-                            </Badge>
-                            <span className="text-blue-400 font-bold">{formatPrice(order.total)}</span>
+
+                          <div className="mt-4">
+                            <p className="text-gray-300 text-sm mb-2">Sản phẩm:</p>
+                            <div className="space-y-1">
+                              {order.items?.map((item: any) => (
+                                <div key={item.product.id} className="text-gray-400 text-sm">
+                                  {item.product.name} x {item.quantity} ={" "}
+                                  {formatPrice(item.product.price * item.quantity)}
+                                </div>
+                              ))}
+                            </div>
                           </div>
                         </div>
-
-                        <div className="text-sm text-gray-400">
-                          <p>
-                            <strong>Khách hàng:</strong> {order.shippingInfo?.name}
-                          </p>
-                          <p>
-                            <strong>Email:</strong> {order.shippingInfo?.email}
-                          </p>
-                          <p>
-                            <strong>Điện thoại:</strong> {order.shippingInfo?.phone}
-                          </p>
-                          <p>
-                            <strong>Địa chỉ:</strong> {order.shippingInfo?.address}
-                          </p>
-                        </div>
-
-                        <div className="mt-4">
-                          <p className="text-gray-300 text-sm mb-2">Sản phẩm:</p>
-                          <div className="space-y-1">
-                            {order.items?.map((item: any) => (
-                              <div key={item.product.id} className="text-gray-400 text-sm">
-                                {item.product.name} x {item.quantity} ={" "}
-                                {formatPrice(item.product.price * item.quantity)}
-                              </div>
-                            ))}
-                          </div>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
+                      ))}
+                    </div>
+                  )}
                 </CardContent>
               </Card>
             </TabsContent>

@@ -1,16 +1,29 @@
 "use client"
 
 import Link from "next/link"
-import { ShoppingCart, User, Menu, X } from "lucide-react"
+import { ShoppingCart, User, Menu, X, Heart, ChevronDown } from "lucide-react"
 import { Button } from "@/components/ui/button"
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu"
 import { useStore } from "@/lib/store"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
 
+const productCategories = [
+  { id: "smartphone", name: "Smartphone", href: "/products/category/smartphone" },
+  { id: "laptop", name: "Laptop", href: "/products/category/laptop" },
+  { id: "tablet", name: "Tablet", href: "/products/category/tablet" },
+  { id: "smartwatch", name: "Smartwatch", href: "/products/category/smartwatch" },
+  { id: "audio", name: "Audio & Headphones", href: "/products/category/audio" },
+  { id: "gaming", name: "Gaming", href: "/products/category/gaming" },
+  { id: "smarthome", name: "Smart Home", href: "/products/category/smarthome" },
+  { id: "accessories", name: "Accessories", href: "/products/category/accessories" },
+]
+
 export default function Navbar() {
-  const { getCartItemsCount, user, isAuthenticated } = useStore()
+  const { getCartItemsCount, getWishlistCount, user, isAuthenticated } = useStore()
   const [isMenuOpen, setIsMenuOpen] = useState(false)
   const cartItemsCount = getCartItemsCount()
+  const wishlistCount = getWishlistCount()
 
   return (
     <nav className="bg-gray-900 border-b border-gray-800 sticky top-0 z-50">
@@ -32,10 +45,52 @@ export default function Navbar() {
             <Link href="/products" className="text-gray-300 hover:text-white transition-colors">
               Sản phẩm
             </Link>
+
+            {/* Product Categories Dropdown */}
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="ghost" className="text-gray-300 hover:text-white transition-colors">
+                  Danh mục sản phẩm
+                  <ChevronDown className="ml-1 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent className="w-56 bg-gray-800 border-gray-700">
+                {productCategories.map((category) => (
+                  <DropdownMenuItem key={category.id} asChild>
+                    <Link
+                      href={category.href}
+                      className="text-gray-300 hover:text-white hover:bg-gray-700 cursor-pointer"
+                    >
+                      {category.name}
+                    </Link>
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuItem asChild>
+                  <Link
+                    href="/products"
+                    className="text-blue-400 hover:text-blue-300 hover:bg-gray-700 cursor-pointer font-medium"
+                  >
+                    Xem tất cả sản phẩm
+                  </Link>
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
           </div>
 
           {/* Right side */}
           <div className="flex items-center space-x-4">
+            {/* Wishlist */}
+            <Link href="/wishlist" className="relative">
+              <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
+                <Heart className="w-5 h-5" />
+                {wishlistCount > 0 && (
+                  <span className="absolute -top-2 -right-2 bg-red-600 text-white text-xs rounded-full w-5 h-5 flex items-center justify-center">
+                    {wishlistCount}
+                  </span>
+                )}
+              </Button>
+            </Link>
+
             {/* Cart */}
             <Link href="/cart" className="relative">
               <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
@@ -82,7 +137,7 @@ export default function Navbar() {
         <div
           className={cn(
             "md:hidden transition-all duration-300 ease-in-out",
-            isMenuOpen ? "max-h-48 opacity-100" : "max-h-0 opacity-0 overflow-hidden",
+            isMenuOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0 overflow-hidden",
           )}
         >
           <div className="py-4 space-y-2">
@@ -99,6 +154,31 @@ export default function Navbar() {
               onClick={() => setIsMenuOpen(false)}
             >
               Sản phẩm
+            </Link>
+
+            {/* Mobile Categories */}
+            <div className="px-4 py-2">
+              <div className="text-gray-400 text-sm font-medium mb-2">Danh mục sản phẩm</div>
+              <div className="space-y-1 ml-4">
+                {productCategories.map((category) => (
+                  <Link
+                    key={category.id}
+                    href={category.href}
+                    className="block px-2 py-1 text-gray-300 hover:text-white hover:bg-gray-800 rounded text-sm"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    {category.name}
+                  </Link>
+                ))}
+              </div>
+            </div>
+
+            <Link
+              href="/wishlist"
+              className="block px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              Yêu thích ({wishlistCount})
             </Link>
           </div>
         </div>
