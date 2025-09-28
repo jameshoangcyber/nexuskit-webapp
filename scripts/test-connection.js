@@ -1,44 +1,51 @@
 const { MongoClient } = require("mongodb")
 
-const MONGODB_URI =
-  process.env.MONGODB_URI || "mongodb+srv://hoangtrongtra2004:JJH9lWYzBo3rNiwQ@cluster0.yakut8l.mongodb.net/nexuskit"
+// Test multiple connection strings to find the correct one
+const connectionStrings = [
+  "mongodb+srv://hoangtrongtra2004:c0acSydB1gWsY5AH@cluster0.yakut8l.mongodb.net/nexuskit",
+  "mongodb+srv://hoangtrongtra2004:JJH9lWYzBo3rNiwQ@cluster0.yakut8l.mongodb.net/nexuskit",
+  // Add more if needed
+]
 
-async function testConnection() {
-  const client = new MongoClient(MONGODB_URI)
+async function testMultipleConnections() {
+  console.log("🔍 Testing multiple MongoDB connection strings...")
 
-  try {
-    console.log("🔄 Testing MongoDB connection...")
-    await client.connect()
-    console.log("✅ Connected to MongoDB successfully!")
+  for (let i = 0; i < connectionStrings.length; i++) {
+    const uri = connectionStrings[i]
+    const client = new MongoClient(uri)
 
-    const db = client.db("nexuskit")
+    try {
+      console.log(`\n🔄 Testing connection ${i + 1}...`)
+      console.log(`URI: ${uri.replace(/:([^:@]{8})[^:@]*@/, ":$1***@")}`) // Hide password
 
-    // Test collections
-    const collections = await db.listCollections().toArray()
-    console.log(
-      "📁 Available collections:",
-      collections.map((c) => c.name),
-    )
+      await client.connect()
+      console.log(`✅ Connection ${i + 1} successful!`)
 
-    // Count documents
-    const userCount = await db.collection("users").countDocuments()
-    const productCount = await db.collection("products").countDocuments()
-    const orderCount = await db.collection("orders").countDocuments()
+      const db = client.db("nexuskit")
+      const collections = await db.listCollections().toArray()
+      console.log(
+        "📁 Available collections:",
+        collections.map((c) => c.name),
+      )
 
-    console.log("📊 Document counts:")
-    console.log(`   Users: ${userCount}`)
-    console.log(`   Products: ${productCount}`)
-    console.log(`   Orders: ${orderCount}`)
+      // This connection works, update .env.local
+      console.log(`\n🎯 Use this connection string in your .env.local:`)
+      console.log(`MONGODB_URI=${uri}`)
 
-    if (productCount === 0) {
-      console.log("⚠️  No products found! Run the seeding script:")
-      console.log("   node scripts/seed-comprehensive-data.js")
+      await client.close()
+      return uri
+    } catch (error) {
+      console.log(`❌ Connection ${i + 1} failed:`, error.message)
+      await client.close()
     }
-  } catch (error) {
-    console.error("❌ MongoDB connection failed:", error)
-  } finally {
-    await client.close()
   }
+
+  console.log("\n❌ All connection attempts failed!")
+  console.log("\n🔧 Please check:")
+  console.log("1. MongoDB Atlas cluster is running")
+  console.log("2. Username and password are correct")
+  console.log("3. IP address is whitelisted (0.0.0.0/0 for all IPs)")
+  console.log("4. Database user has proper permissions")
 }
 
-testConnection()
+testMultipleConnections()
