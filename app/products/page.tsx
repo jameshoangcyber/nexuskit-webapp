@@ -7,75 +7,162 @@ import { useStore } from "@/lib/store"
 import Image from "next/image"
 import Link from "next/link"
 import { motion } from "framer-motion"
-import { ShoppingCart, Star, Heart, Package } from "lucide-react"
+import { ShoppingCart, Star, Heart, Package, ChevronLeft, ChevronRight } from "lucide-react"
 import toast from "react-hot-toast"
 import ProductFilters from "@/components/products/product-filters"
 import { api } from "@/lib/api"
-import { useState, useEffect } from "react"
+import { useState, useEffect, useCallback } from "react"
 import { mockProducts } from "@/lib/mock-data"
-import type { Product } from "@/lib/store"
+import { useRouter, useSearchParams } from "next/navigation"
 
 export default function ProductsPage() {
-  const [products, setProducts] = useState<Product[]>([])
+  const [products, setProducts] = useState([])
   const [isLoading, setIsLoading] = useState(true)
   const [error, setError] = useState("")
-  const [filters, setFilters] = useState({
-    search: "",
-    category: "all",
-    priceRange: "all",
-    sortBy: "name-asc",
-    sortOrder: "asc",
+  const [pagination, setPagination] = useState({
+    currentPage: 1,
+    totalPages: 1,
+    totalProducts: 0,
+    productsPerPage: 9,
+    hasNextPage: false,
+    hasPrevPage: false,
   })
+
   const { addToCart, addToWishlist, removeFromWishlist, isInWishlist } = useStore()
+  const router = useRouter()
+  const searchParams = useSearchParams()
 
-  const fetchProducts = async (newFilters = filters) => {
-    setIsLoading(true)
-    setError("")
-    try {
-      console.log("Fetching products with filters:", newFilters)
+  const fetchProducts = useCallback(
+    async (filters = {}) => {
+      setIsLoading(true)
+      setError("")
 
-      // Try API first, fallback to mock data
-      const response = await api.getProducts(newFilters).catch((apiError) => {
-        console.log("API failed, using mock data:", apiError)
-        return {
-          products: mockProducts.map((product) => ({
+      try {
+        console.log("Fetching products with filters:", filters)
+
+        // Get page from URL or default to 1
+        const page = Number.parseInt(searchParams.get("page") || "1")
+        const limit = 9
+
+        const queryParams = {
+          ...filters,
+          page,
+          limit,
+        }
+
+        // Try API first, fallback to mock data with pagination
+        const response = await api.getProducts(queryParams).catch((apiError) => {
+          console.log("API failed, using mock data:", apiError)
+
+          // Simulate pagination with mock data
+          const startIndex = (page - 1) * limit
+          const endIndex = startIndex + limit
+
+          const filteredProducts = mockProducts.filter((product) => {
+            if (filters.search && !product.name.toLowerCase().includes(filters.search.toLowerCase())) {
+              return false
+            }
+            if (filters.category && product.category !== filters.category) {
+              return false
+            }
+            if (filters.minPrice && product.price < Number.parseInt(filters.minPrice)) {
+              return false
+            }
+            if (filters.maxPrice && product.price > Number.parseInt(filters.maxPrice)) {
+              return false
+            }
+            return true
+          })
+
+          const paginatedProducts = filteredProducts.slice(startIndex, endIndex)
+
+          return {
+            products: paginatedProducts.map((product) => ({
+              ...product,
+              image: product.image || "/placeholder.svg?height=400&width=400",
+            })),
+            pagination: {
+              currentPage: page,
+              totalPages: Math.ceil(filteredProducts.length / limit),
+              totalProducts: filteredProducts.length,
+              productsPerPage: limit,
+              hasNextPage: endIndex < filteredProducts.length,
+              hasPrevPage: page > 1,
+            },
+          }
+        })
+
+        console.log("Products response:", response)
+
+        const productsData = response.products || response || []
+        setProducts(productsData)
+
+        // Update pagination state
+        if (response.pagination) {
+          setPagination(response.pagination)
+        }
+      } catch (error) {
+        console.error("Error fetching products:", error)
+        setError("Không thể tải danh sách sản phẩm")
+
+        // Fallback to mock data on error
+        const page = Number.parseInt(searchParams.get("page") || "1")
+        const limit = 9
+        const startIndex = (page - 1) * limit
+        const endIndex = startIndex + limit
+        const paginatedMockProducts = mockProducts.slice(startIndex, endIndex)
+
+        setProducts(
+          paginatedMockProducts.map((product) => ({
             ...product,
             image: product.image || "/placeholder.svg?height=400&width=400",
           })),
-          total: mockProducts.length,
+        )
+
+        setPagination({
+          currentPage: page,
+          totalPages: Math.ceil(mockProducts.length / limit),
+          totalProducts: mockProducts.length,
+          productsPerPage: limit,
+          hasNextPage: endIndex < mockProducts.length,
+          hasPrevPage: page > 1,
+        })
+      } finally {
+        setIsLoading(false)
+      }
+    },
+    [searchParams],
+  )
+
+  // Initial load
+  useEffect(() => {
+    fetchProducts()
+  }, [fetchProducts])
+
+  const handleFiltersChange = useCallback(
+    (newFilters: any) => {
+      console.log("Filters changed:", newFilters)
+
+      // Update URL without page parameter (reset to page 1)
+      const params = new URLSearchParams()
+      Object.entries(newFilters).forEach(([key, value]) => {
+        if (value !== undefined && value !== "" && value !== null) {
+          params.set(key, value.toString())
         }
       })
 
-      console.log("Products response:", response)
+      router.push(`/products?${params.toString()}`, { scroll: false })
 
-      const productsData = response.products || response || []
-      setProducts(productsData)
+      // Fetch with new filters
+      fetchProducts(newFilters)
+    },
+    [router, fetchProducts],
+  )
 
-      if (productsData.length === 0) {
-        console.log("No products found, but not calling notFound()")
-      }
-    } catch (error) {
-      console.error("Error fetching products:", error)
-      setError("Không thể tải danh sách sản phẩm")
-      // Fallback to mock data on error
-      setProducts(
-        mockProducts.map((product) => ({
-          ...product,
-          image: product.image || "/placeholder.svg?height=400&width=400",
-        })),
-      )
-    } finally {
-      setIsLoading(false)
-    }
-  }
-
-  useEffect(() => {
-    fetchProducts(filters)
-  }, [])
-
-  const handleFiltersChange = (newFilters: any) => {
-    setFilters(newFilters)
-    fetchProducts(newFilters)
+  const handlePageChange = (page: number) => {
+    const params = new URLSearchParams(searchParams.toString())
+    params.set("page", page.toString())
+    router.push(`/products?${params.toString()}`, { scroll: false })
   }
 
   const handleAddToCart = (product: any) => {
@@ -104,6 +191,15 @@ export default function ProductsPage() {
         >
           <h1 className="text-4xl font-bold text-white mb-4">Sản phẩm NexusKit</h1>
           <p className="text-xl text-gray-400">Khám phá bộ sưu tập sản phẩm công nghệ tiên tiến</p>
+
+          {/* Product Count Summary */}
+          {!isLoading && (
+            <div className="mt-4 text-gray-400">
+              Hiển thị {(pagination.currentPage - 1) * pagination.productsPerPage + 1}-
+              {Math.min(pagination.currentPage * pagination.productsPerPage, pagination.totalProducts)} trong tổng số{" "}
+              {pagination.totalProducts} sản phẩm
+            </div>
+          )}
         </motion.div>
 
         {/* Categories Overview Link */}
@@ -128,7 +224,7 @@ export default function ProductsPage() {
 
         {/* Filters */}
         <div className="mb-8">
-          <ProductFilters filters={filters} onFiltersChange={handleFiltersChange} isLoading={isLoading} />
+          <ProductFilters onFiltersChange={handleFiltersChange} isLoading={isLoading} />
         </div>
 
         {/* Error Message */}
@@ -136,17 +232,46 @@ export default function ProductsPage() {
           <div className="mb-6 p-4 bg-red-900/20 border border-red-500 rounded-lg">
             <p className="text-red-400 text-center">{error}</p>
             <div className="text-center mt-2">
-              <Button onClick={() => fetchProducts(filters)} variant="outline" className="border-red-500 text-red-400">
+              <Button onClick={() => fetchProducts()} variant="outline" className="border-red-500 text-red-400">
                 Thử lại
               </Button>
             </div>
           </div>
         )}
 
+        {/* Quick Navigation */}
+        {!isLoading && pagination.totalPages > 1 && (
+          <div className="mb-6 flex justify-between items-center">
+            <Button
+              onClick={() => handlePageChange(pagination.currentPage - 1)}
+              disabled={!pagination.hasPrevPage}
+              variant="outline"
+              className="border-gray-600 text-gray-300 hover:bg-gray-700"
+            >
+              <ChevronLeft className="w-4 h-4 mr-2" />
+              Trang trước
+            </Button>
+
+            <div className="text-gray-400">
+              Trang {pagination.currentPage} / {pagination.totalPages}
+            </div>
+
+            <Button
+              onClick={() => handlePageChange(pagination.currentPage + 1)}
+              disabled={!pagination.hasNextPage}
+              variant="outline"
+              className="border-gray-600 text-gray-300 hover:bg-gray-700"
+            >
+              Trang sau
+              <ChevronRight className="w-4 h-4 ml-2" />
+            </Button>
+          </div>
+        )}
+
         {/* Loading State */}
         {isLoading ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-            {[...Array(6)].map((_, index) => (
+            {[...Array(9)].map((_, index) => (
               <div key={index} className="bg-gray-800 rounded-lg p-6 animate-pulse">
                 <div className="w-full h-64 bg-gray-700 rounded-lg mb-4"></div>
                 <div className="h-6 bg-gray-700 rounded mb-2"></div>
@@ -156,7 +281,7 @@ export default function ProductsPage() {
             ))}
           </div>
         ) : products.length === 0 ? (
-          // Empty State - Don't call notFound()
+          // Empty State
           <div className="text-center py-12">
             <div className="max-w-md mx-auto">
               <div className="w-24 h-24 bg-gray-700 rounded-full flex items-center justify-center mx-auto mb-6">
@@ -164,9 +289,7 @@ export default function ProductsPage() {
               </div>
               <h3 className="text-xl font-semibold text-white mb-2">Không tìm thấy sản phẩm</h3>
               <p className="text-gray-400 mb-6">
-                {Object.keys(filters).length > 0
-                  ? "Không có sản phẩm nào phù hợp với bộ lọc của bạn. Hãy thử điều chỉnh bộ lọc."
-                  : "Hiện tại chưa có sản phẩm nào. Vui lòng quay lại sau."}
+                Không có sản phẩm nào phù hợp với bộ lọc của bạn. Hãy thử điều chỉnh bộ lọc.
               </p>
               <div className="space-y-2">
                 <Button onClick={() => handleFiltersChange({})} className="bg-blue-600 hover:bg-blue-700">

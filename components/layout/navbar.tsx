@@ -7,6 +7,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { useStore } from "@/lib/store"
 import { useState } from "react"
 import { cn } from "@/lib/utils"
+import AdvancedSearch from "@/components/search/advanced-search"
 
 const productCategories = [
   { id: "smartphone", name: "Smartphone", href: "/products/category/smartphone" },
@@ -30,15 +31,20 @@ export default function Navbar() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
-          <Link href="/" className="flex items-center space-x-2">
+          <Link href="/" className="flex items-center space-x-2 flex-shrink-0">
             <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
               <span className="text-white font-bold text-sm">N</span>
             </div>
             <span className="text-white font-bold text-xl">NexusKit</span>
           </Link>
 
+          {/* Search Bar - Desktop */}
+          <div className="hidden md:flex flex-1 max-w-2xl mx-8">
+            <AdvancedSearch />
+          </div>
+
           {/* Desktop Navigation */}
-          <div className="hidden md:flex items-center space-x-8">
+          <div className="hidden md:flex items-center space-x-6 flex-shrink-0">
             <Link href="/" className="text-gray-300 hover:text-white transition-colors">
               Trang chủ
             </Link>
@@ -50,7 +56,7 @@ export default function Navbar() {
             <DropdownMenu>
               <DropdownMenuTrigger asChild>
                 <Button variant="ghost" className="text-gray-300 hover:text-white transition-colors">
-                  Danh mục sản phẩm
+                  Danh mục
                   <ChevronDown className="ml-1 h-4 w-4" />
                 </Button>
               </DropdownMenuTrigger>
@@ -75,10 +81,14 @@ export default function Navbar() {
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>
+
+            <Link href="/compare" className="text-gray-300 hover:text-white transition-colors">
+              So sánh
+            </Link>
           </div>
 
           {/* Right side */}
-          <div className="flex items-center space-x-4">
+          <div className="flex items-center space-x-4 flex-shrink-0">
             {/* Wishlist */}
             <Link href="/wishlist" className="relative">
               <Button variant="ghost" size="sm" className="text-gray-300 hover:text-white">
@@ -133,6 +143,11 @@ export default function Navbar() {
           </div>
         </div>
 
+        {/* Mobile Search */}
+        <div className="md:hidden py-3 border-t border-gray-800">
+          <AdvancedSearch />
+        </div>
+
         {/* Mobile Navigation */}
         <div
           className={cn(
@@ -140,7 +155,7 @@ export default function Navbar() {
             isMenuOpen ? "max-h-96 opacity-100" : "max-h-0 opacity-0 overflow-hidden",
           )}
         >
-          <div className="py-4 space-y-2">
+          <div className="py-4 space-y-2 border-t border-gray-800">
             <Link
               href="/"
               className="block px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded"
@@ -154,6 +169,13 @@ export default function Navbar() {
               onClick={() => setIsMenuOpen(false)}
             >
               Sản phẩm
+            </Link>
+            <Link
+              href="/compare"
+              className="block px-4 py-2 text-gray-300 hover:text-white hover:bg-gray-800 rounded"
+              onClick={() => setIsMenuOpen(false)}
+            >
+              So sánh sản phẩm
             </Link>
 
             {/* Mobile Categories */}

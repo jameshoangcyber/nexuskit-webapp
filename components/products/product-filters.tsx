@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect } from "react"
+import { useState, useCallback } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
@@ -10,7 +10,6 @@ import { Badge } from "@/components/ui/badge"
 import { Search, Filter, X, Package } from "lucide-react"
 
 interface ProductFiltersProps {
-  filters: any
   onFiltersChange: (filters: any) => void
   isLoading?: boolean
 }
@@ -45,41 +44,78 @@ const sortOptions = [
   { value: "newest", label: "Mới nhất" },
 ]
 
-export default function ProductFilters({ filters, onFiltersChange, isLoading = false }: ProductFiltersProps) {
+export default function ProductFilters({ onFiltersChange, isLoading = false }: ProductFiltersProps) {
+  const [filters, setFilters] = useState({
+    search: "",
+    category: "all",
+    priceRange: "all",
+    sortBy: "name-asc",
+  })
   const [showFilters, setShowFilters] = useState(false)
-  const [activeFiltersCount, setActiveFiltersCount] = useState(0)
 
-  useEffect(() => {
-    // Count active filters
-    let count = 0
-    if (filters.search) count++
-    if (filters.category !== "all") count++
-    if (filters.priceRange !== "all") count++
-    setActiveFiltersCount(count)
-  }, [filters])
+  // Calculate active filters count
+  const activeFiltersCount =
+    (filters.search ? 1 : 0) + (filters.category !== "all" ? 1 : 0) + (filters.priceRange !== "all" ? 1 : 0)
+
+  // Process and send filters to parent
+  const processFilters = useCallback(
+    (currentFilters: typeof filters) => {
+      try {
+        // Parse sort option
+        let sortBy = "name"
+        let sortOrder = "asc"
+
+        if (currentFilters.sortBy && currentFilters.sortBy.includes("-")) {
+          const parts = currentFilters.sortBy.split("-")
+          sortBy = parts[0] || "name"
+          sortOrder = parts[1] || "asc"
+        }
+
+        // Parse price range
+        let minPrice, maxPrice
+        if (currentFilters.priceRange && currentFilters.priceRange !== "all") {
+          const parts = currentFilters.priceRange.split("-")
+          minPrice = parts[0]
+          maxPrice = parts[1]
+        }
+
+        const filterParams = {
+          search: currentFilters.search?.trim() || undefined,
+          category: currentFilters.category !== "all" ? currentFilters.category : undefined,
+          minPrice,
+          maxPrice,
+          sortBy,
+          sortOrder,
+        }
+
+        onFiltersChange(filterParams)
+      } catch (error) {
+        console.error("Error processing filters:", error)
+      }
+    },
+    [onFiltersChange],
+  )
 
   const handleFilterChange = (key: string, value: string) => {
-    let newFilters = { ...filters }
-    if (key === "sortBy") {
-      newFilters.sortBy = value
-    } else {
-      newFilters[key] = value
-    }
-    onFiltersChange(newFilters)
+    const newFilters = { ...filters, [key]: value }
+    setFilters(newFilters)
+    processFilters(newFilters)
   }
 
   const clearFilters = () => {
-    onFiltersChange({
+    const defaultFilters = {
       search: "",
       category: "all",
       priceRange: "all",
       sortBy: "name-asc",
-      sortOrder: "asc",
-    })
+    }
+    setFilters(defaultFilters)
+    processFilters(defaultFilters)
   }
 
   const clearFilter = (filterKey: string) => {
-    let newFilters = { ...filters }
+    const newFilters = { ...filters }
+
     if (filterKey === "search") {
       newFilters.search = ""
     } else if (filterKey === "category") {
@@ -87,7 +123,9 @@ export default function ProductFilters({ filters, onFiltersChange, isLoading = f
     } else if (filterKey === "priceRange") {
       newFilters.priceRange = "all"
     }
-    onFiltersChange(newFilters)
+
+    setFilters(newFilters)
+    processFilters(newFilters)
   }
 
   return (
